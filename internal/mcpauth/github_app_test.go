@@ -155,7 +155,7 @@ func (g *gitHub) redirect() string {
 // sign-in ended in.
 func signInAs(t *testing.T, name, u string, app *mcpauth.App) mcpauth.State {
 	t.Helper()
-	st, err := mcpauth.StartWith(t.Context(), name, u, app)
+	st, err := mcpauth.StartWith(t.Context(), name, u, app, mcpauth.Identity{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func TestGitHubCallbackPort(t *testing.T) {
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
 	// taken: the sign-in says so
-	if _, err := mcpauth.StartWith(t.Context(), "github", g.URL, &mcpauth.App{ClientID: id, ClientSecret: secret, CallbackPort: port}); err == nil || !strings.Contains(err.Error(), fmt.Sprint(port)) {
+	if _, err := mcpauth.StartWith(t.Context(), "github", g.URL, &mcpauth.App{ClientID: id, ClientSecret: secret, CallbackPort: port}, mcpauth.Identity{}); err == nil || !strings.Contains(err.Error(), fmt.Sprint(port)) {
 		t.Fatalf("a taken port: %v", err)
 	}
 	ln.Close()

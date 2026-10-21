@@ -46,7 +46,14 @@ type Server struct {
 	// server as, for one whose sign-in doesn't let magpie register itself
 	// (GitHub's, 新v学员 on Discord). It is magpie's alone: the agents are
 	// given the server as before.
-	OAuth *OAuthApp `json:"oauth,omitempty"`
+	// ClientName, ClientURI and LogoURI are what magpie's sign-in
+	// registers itself as (RFC 7591's client_name, client_uri and
+	// logo_uri): the name, website and logo the server's sign-in page
+	// shows. "" for a field is magpie's own.
+	ClientName string    `json:"clientName,omitempty"`
+	ClientURI  string    `json:"clientUri,omitempty"`
+	LogoURI    string    `json:"logoUri,omitempty"`
+	OAuth      *OAuthApp `json:"oauth,omitempty"`
 }
 
 // OAuthApp is an OAuth app made with a server's vendor, by the names
@@ -102,8 +109,13 @@ func (s *Server) check() error {
 	}
 	// magpie signs in only to a streamable HTTP server
 	if s.Transport != "http" {
-		s.OAuth = nil
-	} else if s.OAuth != nil {
+		s.OAuth, s.ClientName, s.ClientURI, s.LogoURI = nil, "", "", ""
+	} else {
+		s.ClientName = strings.TrimSpace(s.ClientName)
+		s.ClientURI = strings.TrimSpace(s.ClientURI)
+		s.LogoURI = strings.TrimSpace(s.LogoURI)
+	}
+	if s.OAuth != nil {
 		a := *s.OAuth
 		a.ClientID, a.ClientSecret = strings.TrimSpace(a.ClientID), strings.TrimSpace(a.ClientSecret)
 		if a.CallbackPort < 0 || a.CallbackPort > 65535 {

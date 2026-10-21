@@ -43,6 +43,9 @@ type Fake struct {
 	// NoMetadata leaves out the resource metadata: the server of the 2025-03
 	// spec, whose authorization server is its own origin
 	NoMetadata bool
+	// ProbeName is the client name of the last discovery probe's
+	// initialize, the request that got the 401 naming where to sign in
+	ProbeName string
 	// OpenID is an authorization server that is an OpenID provider, as
 	// Vercel's is: the server names only the scope "openid" and its 401 none,
 	// and a refresh token is given only to a sign-in that asked for
@@ -250,6 +253,19 @@ func (f *Fake) mcp(w http.ResponseWriter, r *http.Request) {
 	ok := f.valid[tok] && !f.refuse
 	f.mu.Unlock()
 	if !ok {
+		var probe struct {
+			Params struct {
+				ClientInfo struct {
+					Name string `json:"name"`
+				} `json:"clientInfo"`
+			} `json:"params"`
+		}
+		if b, err := io.ReadAll(r.Body); err == nil {
+			json.Unmarshal(b, &probe)
+			f.mu.Lock()
+			f.ProbeName = probe.Params.ClientInfo.Name
+			f.mu.Unlock()
+		}
 		meta := f.Server.URL + "/.well-known/oauth-protected-resource/mcp"
 		if f.OpenID {
 			w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token", resource_metadata="`+meta+`"`)

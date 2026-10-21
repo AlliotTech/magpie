@@ -106,7 +106,7 @@ func SignInServer(ctx context.Context, name string) (mcpauth.State, error) {
 	if s.OAuth != nil {
 		app = &mcpauth.App{ClientID: s.OAuth.ClientID, ClientSecret: s.OAuth.ClientSecret, CallbackPort: s.OAuth.CallbackPort}
 	}
-	return mcpauth.StartWith(ctx, s.Name, s.URL, app)
+	return mcpauth.StartWith(ctx, s.Name, s.URL, app, mcpauth.Identity{Name: s.ClientName, URI: s.ClientURI, LogoURI: s.LogoURI})
 }
 
 // SignOutServer forgets magpie's sign-in to the server called name, and

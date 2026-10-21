@@ -539,13 +539,17 @@ func getJSON(ctx context.Context, u string, v any) bool {
 const protocolVersion = "2025-06-18"
 
 // discover finds how to sign in to the server at serverURL.
-func discover(ctx context.Context, serverURL string) (meta, error) {
+func discover(ctx context.Context, serverURL, clientName string) (meta, error) {
 	su, err := url.Parse(serverURL)
 	if err != nil || su.Host == "" {
 		return meta{}, fmt.Errorf("%q isn't a URL", serverURL)
 	}
 	// ask it something, as an agent would: its 401 says where to sign in
-	body := `{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"` + protocolVersion + `","capabilities":{},"clientInfo":{"name":"magpie","version":"1"}}}`
+	if clientName == "" {
+		clientName = "magpie"
+	}
+	b, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": map[string]any{"protocolVersion": protocolVersion, "capabilities": map[string]any{}, "clientInfo": map[string]string{"name": clientName, "version": "1"}}})
+	body := string(b)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, serverURL, strings.NewReader(body))
 	if err != nil {
 		return meta{}, err
@@ -666,8 +670,8 @@ func contains(l []string, s string) bool {
 }
 
 // register makes magpie a client of the authorization server, sent back to
-// redirect.
-func register(ctx context.Context, m meta, redirect string) (id, secret, method string, err error) {
+// redirect, as self says ("" fields for magpie's own defaults).
+func register(ctx context.Context, m meta, redirect string, self Identity) (id, secret, method string, err error) {
 	if m.RegisterURL == "" {
 		return "", "", "", ErrNoRegistration
 	}
@@ -684,13 +688,23 @@ func register(ctx context.Context, m meta, redirect string) (id, secret, method 
 			return "", "", "", fmt.Errorf("the server's token endpoint takes only %s, which magpie can't do", strings.Join(m.AuthMethods, ", "))
 		}
 	}
+	name, uri := self.Name, self.URI
+	if name == "" {
+		name = "Magpie"
+	}
+	if uri == "" {
+		uri = "https://usemagpie.ai"
+	}
 	reg := map[string]any{
-		"client_name":                "Magpie",
-		"client_uri":                 "https://usemagpie.ai",
+		"client_name":                name,
+		"client_uri":                 uri,
 		"redirect_uris":              []string{redirect},
 		"grant_types":                []string{"authorization_code", "refresh_token"},
 		"response_types":             []string{"code"},
 		"token_endpoint_auth_method": method,
+	}
+	if self.LogoURI != "" {
+		reg["logo_uri"] = self.LogoURI
 	}
 	if m.Scope != "" {
 		reg["scope"] = m.Scope
@@ -783,6 +797,16 @@ func randomToken(n int) string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
+// Identity is how magpie presents itself to a server: what its discovery
+// probe calls it and what its sign-in registers it as (RFC 7591's
+// client_name, client_uri and logo_uri) — what the server's sign-in page
+// shows. "" for a field is magpie's own default.
+type Identity struct {
+	Name    string
+	URI     string
+	LogoURI string
+}
+
 // App is an OAuth app of the user's own, for a server whose sign-in
 // doesn't let magpie register itself: Claude Code's --client-id,
 // --client-secret and --callback-port. Its callback is Claude Code's,
@@ -801,15 +825,16 @@ type App struct {
 // open the State's URL in a browser and the rest happens on its own;
 // StatusOf follows it.
 func Start(ctx context.Context, name, serverURL string) (State, error) {
-	return StartWith(ctx, name, serverURL, nil)
+	return StartWith(ctx, name, serverURL, nil, Identity{})
 }
 
 // StartWith is Start as app when there is one, which magpie then doesn't
-// register in its place.
-func StartWith(ctx context.Context, name, serverURL string, app *App) (State, error) {
+// register in its place. self is how magpie presents itself when there is
+// no app ("" fields for magpie's own defaults).
+func StartWith(ctx context.Context, name, serverURL string, app *App, self Identity) (State, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	m, err := discover(ctx, serverURL)
+	m, err := discover(ctx, serverURL, self.Name)
 	if err != nil {
 		return State{}, err
 	}
@@ -836,7 +861,7 @@ func StartWith(ctx context.Context, name, serverURL string, app *App) (State, er
 	var id, secret, method string
 	if app != nil {
 		id, secret, method = app.ClientID, app.ClientSecret, appMethod(m, app.ClientSecret)
-	} else if id, secret, method, err = register(ctx, m, redirect); err != nil {
+	} else if id, secret, method, err = register(ctx, m, redirect, self); err != nil {
 		ln.Close()
 		return State{}, err
 	}

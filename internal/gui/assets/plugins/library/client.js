@@ -2130,6 +2130,9 @@ magpie.plugin("library", (ctx) => {
           appHint = f[1].querySelector(".hint");
           g.append(...f);
           g.append(...field(t("Sign-in"), signBox, t("For a server that asks you to sign in (OAuth): magpie signs in once, and every agent given it uses that sign-in")));
+          g.append(...field(t("Client name"), field2(d.clientName || "", "Magpie", (v) => { d.clientName = v.trim(); }), t("What the sign-in page shows magpie as, when magpie registers itself there")));
+          g.append(...field(t("Website"), field2(d.clientUri || "", "https://example.com", (v) => { d.clientUri = v.trim(); }), t("Shown on the sign-in page beside the name, when magpie registers itself there")));
+          g.append(...field(t("Logo URI"), field2(d.logoUri || "", "https://example.com/logo.png", (v) => { d.logoUri = v.trim(); }), t("The logo shown on the sign-in page, when magpie registers itself there")));
         } else appBox = null;
       }
       slot.append(g);
@@ -2152,7 +2155,7 @@ magpie.plugin("library", (ctx) => {
     const send = async () => {
       const body = { old: s ? s.name : "", server: { name: d.name, transport: d.transport, agents: d.agents } };
       if (d.transport === "stdio") Object.assign(body.server, { command: d.command, args: d.args, env: d.env });
-      else Object.assign(body.server, { url: d.url, headers: d.headers, oauth: d.transport === "http" && d.oauth?.clientId ? d.oauth : null });
+      else Object.assign(body.server, { url: d.url, headers: d.headers, clientName: d.clientName || "", clientUri: d.clientUri || "", logoUri: d.logoUri || "", oauth: d.transport === "http" && d.oauth?.clientId ? d.oauth : null });
       take(await api("library/servers/save", body));
       const was = s;
       s = lib.servers.find((x) => x.name === d.name) || s;

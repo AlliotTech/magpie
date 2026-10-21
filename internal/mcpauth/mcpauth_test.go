@@ -106,6 +106,28 @@ func TestSignInPage(t *testing.T) {
 	}
 }
 
+// An identity given with the sign-in is what the registration asks for;
+// none is magpie's own defaults.
+func TestClientIdentity(t *testing.T) {
+	home(t)
+	f := mcpauthtest.New(t)
+	st, err := mcpauth.StartWith(t.Context(), "neon", f.URL, nil, mcpauth.Identity{Name: "acme", URI: "https://acme.example", LogoURI: "https://acme.example/logo.png"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mcpauth.Cancel(st.ID)
+	if len(f.Registered) != 1 {
+		t.Fatalf("registered %d", len(f.Registered))
+	}
+	reg := f.Registered[0]
+	if reg["client_name"] != "acme" || reg["client_uri"] != "https://acme.example" || reg["logo_uri"] != "https://acme.example/logo.png" {
+		t.Errorf("registration = %v", reg)
+	}
+	if f.ProbeName != "acme" {
+		t.Errorf("discovery probe named itself %q", f.ProbeName)
+	}
+}
+
 // A server that answers without a sign-in has nothing to sign in to.
 func TestNothingToSignIn(t *testing.T) {
 	home(t)
